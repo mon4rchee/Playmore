@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import axios from "axios";
 
 dotenv.config();
@@ -152,7 +151,13 @@ PLAYER ACTION: "${action}"`;
 });
 
 async function startServer() {
+  if (process.env.VERCEL === "1" || process.env.NOW_BUILDER) {
+    // Vercel handles serving static files and routing. Do not boot Vite or serve files here.
+    return;
+  }
+
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
