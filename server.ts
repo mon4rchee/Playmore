@@ -65,12 +65,13 @@ PLAYER ACTION: "${action}"`;
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt }
         ],
-        max_tokens: 2000,
+        max_tokens: 1000,
         temperature: 0.5,
         top_p: 0.70,
         frequency_penalty: 0.00,
         presence_penalty: 0.00,
-        stream: false
+        stream: false,
+        reasoning_effort: "minimal"
       },
       {
         headers: {
@@ -170,4 +171,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== "1" && !process.env.NOW_BUILDER) {
+  startServer();
+}
+
+export default app;

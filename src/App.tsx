@@ -635,23 +635,26 @@ export default function App() {
               <Icon icon="lucide:flag" /> Factions
             </h3>
             <div className="space-y-3">
-              {Object.entries(gameState.factions).map(([faction, rep]) => (
-                <div key={faction} className="flex items-center justify-between text-sm">
-                  <span className="text-neutral-400">{faction}</span>
-                  <span
-                    className={`font-mono ${
-                      rep > 0
-                        ? "text-emerald-400"
-                        : rep < 0
-                        ? "text-rose-400"
-                        : "text-neutral-500"
-                    }`}
-                  >
-                    {rep > 0 ? "+" : ""}
-                    {rep}
-                  </span>
-                </div>
-              ))}
+              {Object.entries(gameState.factions).map(([faction, rep]) => {
+                const repVal = rep as number;
+                return (
+                  <div key={faction} className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">{faction}</span>
+                    <span
+                      className={`font-mono ${
+                        repVal > 0
+                          ? "text-emerald-400"
+                          : repVal < 0
+                          ? "text-rose-400"
+                          : "text-neutral-500"
+                      }`}
+                    >
+                      {repVal > 0 ? "+" : ""}
+                      {repVal}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
