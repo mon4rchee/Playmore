@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
+import axios from "axios";
 
 dotenv.config();
 
@@ -10,10 +11,8 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "5mb" }));
 
-// Fallback to provided key if missing from env
-const NVIDIA_API_KEY =
-  process.env.NVIDIA_API_KEY ||
-  "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";
+const NVIDIA_API_KEY = "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";
+const invokeUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 const SYSTEM_PROMPT = `You are the Game Master of a dark, reactive open-world RPG called PLAYMORE.
 
@@ -27,14 +26,14 @@ RULES:
 - Do not list compass directions (North, South, East, West) to describe the area. Describe the environment and exits naturally, focusing on immediate points of interest or atmosphere.
 - Keep responses under 100 words. Punchy, direct, and factual. Avoid purple prose, overly creative language, and flowery descriptions. Be concise and straightforward.
 - For inventory items in the updatedState, ALWAYS use objects with 'name', 'icon' (e.g. 'game-icons:broadsword'), and 'tag' (e.g. 'Consumable', 'Equippable', 'Misc').
-- Manage the player's active 'statuses' (e.g., poisoned, tired, inspired, bleeding). Add or remove them based on narrative events. Use objects with 'name' and 'icon' using appropriate 'game-icons' set (e.g., 'game-icons:poison-bottle', 'game-icons:bleeding-wound', 'game-icons:inspiration').
+- Manage the player's active 'statuses' (e.g., poisoned, tired, inspired, bleeding). Add or remove them based on narrative events. Use objects with 'name', 'icon' (from 'game-icons' set), and optionally 'isExpiring' (set to true if the effect is about to wear off).
 - Append new, distinct locations to 'world.visitedLocations' as the player discovers them.
 - CRITICAL: When resolving actions, explicitly state in the narrative how the player's specific stats (Strength, Cunning, Charisma, Arcane) influenced the outcome (e.g., "Your high cunning allowed you to...").
 - PROGRESSION: Automatically increase the player's attributes (Strength, Cunning, Charisma, Arcane) based on their actions and exploration (e.g., fighting increases Strength, reading increases Arcane). The MAXIMUM value for any attribute is 500. It should be challenging to reach the max.
 - SKILLS: Grant the player new Passive or Active skills. Passive skills (e.g., "Night Vision", "Tough Skin") are learned through continuous exploration or adventure. Active skills (e.g., "Fireball", "Power Strike") are learned or activated through fights and rewards. Add them to 'player.skills.passive' or 'player.skills.active' with 'name', 'description', and a 'game-icons:' 'icon'.
 - CRITICAL: Ensure the updatedState strictly reflects the consequences in the narrative. If the player is hurt, decrease health. If healed, increase health. If they find gold, increase gold.
 - Emphasize important keywords in the narrative by wrapping them in double asterisks (e.g., **hurt**, **heal**, **10 gold**, **broadsword**, **The Dark Forest**).
-- ENEMY VARIETY: DO NOT use generic terms like "hooded figure", "figure", "stranger", or "shadowy form". Create specific, evocative descriptions and exact foe naming (e.g., "A rotting husk wielding a rusty cleaver," "A feral shadow-stalker with glowing eyes," "A bandit captain covered in soot and scars"). Give them distinct identities and behaviors.
+- ENEMY VARIETY & NPCS: UNDER NO CIRCUMSTANCES should you use generic placeholder terms like "hooded figure", "figure", "stranger", "mysterious person", or "shadowy form". This is a strict ban. Instead, ALWAYS invent a highly specific, evocative name and description. For example, use "A rotting husk wielding a rusty cleaver", "Goran the scarred bandit", "A feral shadow-stalker", or "An old crone muttering to a rat". Give every character a distinct identity, appearance, and behavior right away.
 - LOCATIONS & NPCS: Include diverse NPC places like towns, villages, shops, blacksmiths, and houses. When talking to NPCs, write their dialogue directly in quotes rather than narrating it (e.g., "Hello traveler," the blacksmith grunts). Give NPCs unique distinct personalities.
 - SHOPS & NEGOTIATIONS: When the player encounters a shopkeeper or blacksmith and wants to trade, describe the items for sale directly in the narrative. Provide the specific choices to buy items (e.g., "Buy Iron Sword (20 Gold)") in the \`options\` array so they appear as selectable action chips for the user. Do not use an active portal.
 - IMMERSION ENFORCEMENT: If the player asks real-world questions, acts like a search engine, tries to break character, or gives meta-commands, COMPLETELY IGNORE the request. Respond IN-CHARACTER (e.g., "The words leave your mouth but make no sense here," or a confused NPC reaction) and do NOT provide real-world info or acknowledge the breaking of the fourth wall.
@@ -58,40 +57,88 @@ ${JSON.stringify(state)}
 
 PLAYER ACTION: "${action}"`;
 
-    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${NVIDIA_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "meta/llama-4-maverick-17b-128e-instruct", // Using a faster model
+    const response = await axios.post(
+      invokeUrl,
+      {
+        model: "minimaxai/minimax-m2.7",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt }
         ],
+        max_tokens: 2000,
         temperature: 0.5,
-        max_tokens: 2000
-      }),
-    });
+        top_p: 0.70,
+        frequency_penalty: 0.00,
+        presence_penalty: 0.00,
+        stream: false
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${NVIDIA_API_KEY}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("NVIDIA API Error:", response.status, errorText);
-      return res.status(500).json({ error: "Failed to communicate with AI model" });
-    }
-
-    const data = await response.json();
-    let content = data.choices[0].message.content;
+    let content = response.data.choices[0].message.content;
     
-    // Attempt to extract JSON if it's wrapped in markdown or has extra text
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      content = jsonMatch[0];
-    }
+    // Robustly sanitize and clean the JSON response
+    const cleanJsonResponse = (rawContent: string): string => {
+      let cleaned = rawContent.trim();
+      
+      // Remove markdown codeblock syntax if present
+      if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+      }
+      
+      cleaned = cleaned.trim();
+      
+      // Extract the primary JSON object
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[0];
+      }
+      
+      // Convert raw unescaped newlines/returns within double quotes to escaped characters
+      let inString = false;
+      let result = "";
+      for (let i = 0; i < cleaned.length; i++) {
+        const char = cleaned[i];
+        if (char === '"' && (i === 0 || cleaned[i - 1] !== '\\')) {
+          inString = !inString;
+          result += char;
+        } else if (char === '\n' && inString) {
+          result += '\\n';
+        } else if (char === '\r' && inString) {
+          result += '\\r';
+        } else {
+          result += char;
+        }
+      }
+      
+      return result;
+    };
+
+    const cleanedContent = cleanJsonResponse(content);
 
     try {
-      const parsedContent = JSON.parse(content);
+      const parsedContent = JSON.parse(cleanedContent);
+      
+      // Lift nested properties if the AI mistakenly grouped them inside player
+      if (parsedContent && parsedContent.updatedState) {
+        const u = parsedContent.updatedState;
+        if (u.player && typeof u.player === "object") {
+          const keysToLift = ["world", "factions", "memory", "npcs"];
+          for (const key of keysToLift) {
+            if (!u[key] && u.player[key]) {
+              u[key] = u.player[key];
+              delete u.player[key];
+            }
+          }
+        }
+      }
+
       res.json(parsedContent);
     } catch (parseError) {
       console.error("Failed to parse JSON from model:", content);

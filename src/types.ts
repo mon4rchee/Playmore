@@ -7,6 +7,7 @@ export interface InventoryItem {
 export interface StatusEffect {
   name: string;
   icon: string;
+  isExpiring?: boolean;
 }
 
 export interface GameState {

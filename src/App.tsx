@@ -257,38 +257,40 @@ export default function App() {
 
   if (!isGameStarted) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center relative overflow-hidden font-sans">
+      <div className="h-[100dvh] w-full bg-neutral-950 flex flex-col relative overflow-hidden font-sans">
         <div className="absolute inset-0 z-0 flex items-center justify-center">
            <div className="w-[80vw] h-[80vw] md:w-[40vw] md:h-[40vw] rounded-full bg-neutral-900/40 blur-[100px] animate-pulse" style={{ animationDuration: '4s' }} />
         </div>
         
         {isSelectingTown ? (
-          <div className="z-10 flex flex-col items-center gap-8 px-6 text-center w-full max-w-6xl py-12 h-screen overflow-y-auto">
-            <div>
-              <h2 className="text-4xl font-semibold tracking-tight text-neutral-100 mb-2">Choose Your Origin</h2>
-              <p className="text-neutral-400">Where does your story begin?</p>
+          <div className="z-10 flex flex-col h-full w-full px-4 pt-8 pb-4 max-w-2xl mx-auto">
+            <div className="shrink-0 text-center mb-6">
+              <h2 className="text-3xl font-semibold tracking-tight text-neutral-100 mb-2">Choose Origin</h2>
+              <p className="text-sm text-neutral-400">Where does your story begin?</p>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full pb-12">
-              {STARTING_TOWNS.map((town) => (
-                <button
-                  key={town.name}
-                  onClick={() => handleTownSelect(town.name)}
-                  className="bg-neutral-900/50 hover:bg-neutral-800/80 border border-neutral-800 hover:border-neutral-700 transition-all text-left p-6 rounded-2xl flex flex-col gap-3 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-neutral-950 flex items-center justify-center border border-neutral-800 group-hover:scale-110 transition-transform">
-                    <Icon icon={town.icon} className="w-6 h-6 text-neutral-400 group-hover:text-neutral-200" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-medium text-neutral-200 mb-1">{town.name}</h3>
-                    <p className="text-sm text-neutral-500 leading-relaxed">{town.description}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="flex-1 overflow-y-auto w-full pr-2 pb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {STARTING_TOWNS.map((town) => (
+                  <button
+                    key={town.name}
+                    onClick={() => handleTownSelect(town.name)}
+                    className="bg-neutral-900/50 hover:bg-neutral-800/80 border border-neutral-800 hover:border-neutral-700 transition-all text-left p-4 rounded-2xl flex items-center gap-4 group shrink-0"
+                  >
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-neutral-950 flex items-center justify-center border border-neutral-800 group-hover:scale-110 transition-transform">
+                      <Icon icon={town.icon} className="w-5 h-5 text-neutral-400 group-hover:text-neutral-200" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-medium text-neutral-200 truncate">{town.name}</h3>
+                      <p className="text-xs text-neutral-500 leading-snug line-clamp-2 mt-0.5">{town.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="z-10 flex flex-col items-center gap-12 px-6 text-center max-w-lg">
+          <div className="z-10 flex-1 flex flex-col items-center justify-center gap-12 px-6 text-center max-w-lg mx-auto">
             <div className="flex flex-col items-center gap-6">
               <div className="w-24 h-24 rounded-3xl bg-neutral-900 border border-neutral-800 flex items-center justify-center shadow-2xl">
                 <Icon icon="lucide:sparkles" className="w-10 h-10 text-neutral-300" />
@@ -316,9 +318,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-300 font-sans selection:bg-neutral-800 flex overflow-hidden relative">
+    <div className="h-[100dvh] w-full bg-neutral-950 text-neutral-300 font-sans selection:bg-neutral-800 flex overflow-hidden relative">
       {/* Main Game Area */}
-      <div className="flex-1 flex flex-col h-screen min-w-0">
+      <div className="flex-1 flex flex-col h-full min-w-0">
         <header className="p-4 border-b border-neutral-900 bg-neutral-950/50 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-neutral-900 flex items-center justify-center border border-neutral-800 text-neutral-400">
@@ -491,10 +493,14 @@ export default function App() {
               {gameState.player.statuses.map((status, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/80 border border-neutral-800 text-xs text-neutral-300"
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs ${
+                    status.isExpiring 
+                      ? "animate-pulse border-amber-500/50 bg-amber-950/40 text-amber-200" 
+                      : "bg-neutral-900/80 border-neutral-800 text-neutral-300"
+                  }`}
                   title={status.name}
                 >
-                  <Icon icon={status.icon || "lucide:activity"} className="w-3.5 h-3.5 text-neutral-400" />
+                  <Icon icon={status.icon || "lucide:activity"} className={`w-3.5 h-3.5 ${status.isExpiring ? "text-amber-400" : "text-neutral-400"}`} />
                   <span className="font-medium tracking-wide">{status.name}</span>
                 </div>
               ))}
