@@ -63,11 +63,10 @@ PLAYER ACTION: "${action}"`;
         ],
         max_tokens: 1000,
         temperature: 0.5,
-        top_p: 0.70,
-        frequency_penalty: 0.00,
-        presence_penalty: 0.00,
+        top_p: 0.5,
+        frequency_penalty: 0.4,
+        presence_penalty: 0.3,
         stream: false,
-        reasoning_effort: "minimal"
       },
       {
         headers: {
