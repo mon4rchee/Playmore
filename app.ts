@@ -36,6 +36,7 @@ RULES:
 
 RESPONSE FORMAT (always return JSON):
 You must return your response as a strictly valid JSON object matching this structure EXACTLY. Do NOT include markdown code blocks (e.g. \`\`\`json) or any extra text before or after the JSON.
+IMPORTANT: Your response must be a single valid JSON object and nothing else. No markdown, no explanation, no text before or after.
 {
   "narrative": "A concise, engaging description of what happens.",
   "messageType": "good" | "bad" | "neutral", // Set to "good" for positive outcomes, "bad" for negative/painful outcomes, "neutral" for general exploration/observations.
@@ -56,17 +57,18 @@ PLAYER ACTION: "${action}"`;
     const response = await axios.post(
       invokeUrl,
       {
-        model: "minimaxai/minimax-m2.7",
+        model: "meta/llama-3.3-70b-instruct",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt }
         ],
         max_tokens: 1000,
-        temperature: 0.5,
-        top_p: 0.5,
+        temperature: 0.8,
+        top_p: 0.90,
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
         stream: false,
+        response_format: { type: "json_object" }
       },
       {
         headers: {
