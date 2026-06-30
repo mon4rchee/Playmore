@@ -132,6 +132,9 @@ export default function App() {
   const [isInventoryExpanded, setIsInventoryExpanded] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isSelectingTown, setIsSelectingTown] = useState(false);
+  const [hasSavedGame, setHasSavedGame] = useState(false);
+  const [notifications, setNotifications] = useState<{ id: string; message: string; icon?: string; isRead: boolean }[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const hasInitialized = useRef(false);
@@ -158,6 +161,23 @@ export default function App() {
     { name: "Kingswatch", description: "The ancient capital of a fallen empire.", icon: "lucide:crown" },
     { name: "Verdant Vale", description: "A lush, overgrown town bursting with life.", icon: "lucide:flower" }
   ];
+
+  useEffect(() => {
+    const savedState = localStorage.getItem("playmore_state");
+    const savedHistory = localStorage.getItem("playmore_history");
+    const savedNotifications = localStorage.getItem("playmore_notifications");
+    if (savedState && savedHistory) {
+      setHasSavedGame(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isGameStarted) {
+      localStorage.setItem("playmore_state", JSON.stringify(gameState));
+      localStorage.setItem("playmore_history", JSON.stringify(history));
+      localStorage.setItem("playmore_notifications", JSON.stringify(notifications));
+    }
+  }, [gameState, history, notifications, isGameStarted]);
 
   // Initial prompt to start the game
   useEffect(() => {
@@ -196,6 +216,7 @@ export default function App() {
         body: JSON.stringify({
           state: gameState,
           action: actionText,
+          history: history.slice(-10),
         }),
       });
 
@@ -204,6 +225,9 @@ export default function App() {
       }
 
       const data: GameTurnResponse = await response.json();
+      
+      const newNotes: { id: string; message: string; icon?: string; isRead: boolean }[] = [];
+      const newTurnCount = (gameState.player.turnCount || 0) + (isInitial ? 0 : 1);
       
       setGameState(prev => {
         const newState = { ...prev };
@@ -218,8 +242,31 @@ export default function App() {
             newState.world = { ...prev.world, ...data.updatedState.world };
           }
         }
+        
+        newState.player.turnCount = newTurnCount;
+
+        if (newState.player.emergedClass && newState.player.emergedClass !== prev.player.emergedClass) {
+          newNotes.push({ id: Date.now() + Math.random().toString(), message: `Class Evolved: ${newState.player.emergedClass}`, icon: "lucide:star", isRead: false });
+        }
+        const oldActive = prev.player.skills?.active?.length || 0;
+        const newActive = newState.player.skills?.active?.length || 0;
+        if (newActive > oldActive) {
+          const added = newState.player.skills.active[newActive - 1];
+          newNotes.push({ id: Date.now() + Math.random().toString(), message: `New Active Skill: ${added.name}`, icon: added.icon || "lucide:swords", isRead: false });
+        }
+        const oldPassive = prev.player.skills?.passive?.length || 0;
+        const newPassive = newState.player.skills?.passive?.length || 0;
+        if (newPassive > oldPassive) {
+          const added = newState.player.skills.passive[newPassive - 1];
+          newNotes.push({ id: Date.now() + Math.random().toString(), message: `New Passive Skill: ${added.name}`, icon: added.icon || "lucide:shield", isRead: false });
+        }
+
         return newState;
       });
+
+      if (newNotes.length > 0) {
+        setNotifications(prev => [...prev, ...newNotes]);
+      }
 
       setOptions(data.options || []);
       if (data.icon) setCurrentIcon(data.icon);
@@ -247,6 +294,37 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleContinue = () => {
+    const savedState = localStorage.getItem("playmore_state");
+    const savedHistory = localStorage.getItem("playmore_history");
+    const savedNotifications = localStorage.getItem("playmore_notifications");
+    if (savedState && savedHistory) {
+      setGameState(JSON.parse(savedState));
+      setHistory(JSON.parse(savedHistory));
+      if (savedNotifications) {
+        setNotifications(JSON.parse(savedNotifications));
+      }
+      setIsGameStarted(true);
+    }
+  };
+
+  const handleNewJourney = () => {
+    localStorage.removeItem("playmore_state");
+    localStorage.removeItem("playmore_history");
+    localStorage.removeItem("playmore_notifications");
+    setGameState({
+      ...INITIAL_STATE,
+      player: {
+        ...INITIAL_STATE.player,
+        emergedClass: "Traveler",
+        turnCount: 0
+      }
+    });
+    setHistory([]);
+    setNotifications([]);
+    setIsSelectingTown(true);
   };
 
   const handleTownSelect = (townName: string) => {
@@ -305,12 +383,26 @@ export default function App() {
               </div>
             </div>
             
-            <button
-              onClick={() => setIsSelectingTown(true)}
-              className="group px-8 py-4 rounded-full bg-neutral-100 text-neutral-950 font-medium hover:bg-white transition-all hover:scale-105 active:scale-95 flex items-center gap-3 text-lg"
-            >
-              Begin <Icon icon="lucide:arrow-right" className="group-hover:translate-x-1 transition-transform" />
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              {hasSavedGame && (
+                <button
+                  onClick={handleContinue}
+                  className="group px-8 py-4 rounded-full bg-neutral-100 text-neutral-950 font-medium hover:bg-white transition-all hover:scale-105 active:scale-95 flex items-center gap-3 text-lg"
+                >
+                  Continue Journey <Icon icon="lucide:play" className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              )}
+              <button
+                onClick={handleNewJourney}
+                className={`group px-8 py-4 rounded-full font-medium transition-all hover:scale-105 active:scale-95 flex items-center gap-3 text-lg ${
+                  hasSavedGame 
+                    ? "bg-transparent text-neutral-400 border border-neutral-700 hover:text-neutral-200 hover:border-neutral-500"
+                    : "bg-neutral-100 text-neutral-950 hover:bg-white"
+                }`}
+              >
+                New Journey <Icon icon="lucide:arrow-right" className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -336,6 +428,54 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative w-8 h-8 flex items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              >
+                <Icon icon="lucide:bell" width="16" height="16" />
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-neutral-950"></span>
+                )}
+              </button>
+              
+              {showNotifications && (
+                <div className="absolute top-full mt-2 right-0 w-72 max-h-96 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden">
+                  <div className="p-3 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/95">
+                    <h4 className="text-sm font-medium text-neutral-200">Notifications</h4>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setNotifications(prev => prev.map(n => ({...n, isRead: true})))}
+                        title="Mark all as read"
+                        className="text-neutral-500 hover:text-neutral-300"
+                      >
+                        <Icon icon="lucide:check-check" className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setShowNotifications(false)}
+                        title="Close"
+                        className="text-neutral-500 hover:text-neutral-300"
+                      >
+                        <Icon icon="lucide:x" className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-neutral-500 text-center py-4">No notifications yet.</p>
+                    ) : (
+                      [...notifications].reverse().map(note => (
+                        <div key={note.id} className={`p-3 rounded-lg text-sm flex gap-3 ${note.isRead ? 'opacity-60 bg-transparent' : 'bg-neutral-800/50 border border-neutral-700/50'}`}>
+                          <Icon icon={note.icon || "lucide:info"} className="w-4 h-4 mt-0.5 shrink-0 text-neutral-400" />
+                          <p className="text-neutral-300">{note.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {gameState.player.emergedClass && (
               <div className={`px-3 py-1 rounded-full border text-xs tracking-wider uppercase font-sans ${getClassColor(gameState.player.emergedClass)}`}>
                 {gameState.player.emergedClass}

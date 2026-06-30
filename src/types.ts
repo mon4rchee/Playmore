@@ -25,6 +25,7 @@ export interface GameState {
     gold: number;
     health: number;
     maxHealth: number;
+    turnCount?: number;
     skills: {
       passive: { name: string; description: string; icon: string }[];
       active: { name: string; description: string; icon: string }[];

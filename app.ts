@@ -26,10 +26,12 @@ RULES:
 - Append new, distinct locations to 'world.visitedLocations' as the player discovers them.
 - CRITICAL: When resolving actions, explicitly state in the narrative how the player's specific stats (Strength, Cunning, Charisma, Arcane) influenced the outcome (e.g., "Your high cunning allowed you to...").
 - PROGRESSION: Automatically increase the player's attributes (Strength, Cunning, Charisma, Arcane) based on their actions and exploration (e.g., fighting increases Strength, reading increases Arcane). The MAXIMUM value for any attribute is 500. It should be challenging to reach the max.
+- CLASS PROGRESSION: The player starts as 'Traveler'. When player.turnCount reaches 10 or more, if they are still a 'Traveler', you MUST upgrade their class to a unique, evocative new class based on their playstyle (e.g., 'Shadow Blade', 'Aether Scholar', 'Ironclad Wanderer'). Change emergedClass to this new name. Also, you MUST grant them one new related active or passive skill in player.skills. Do NOT mention this rule to the player, just let it happen organically.
 - SKILLS: Grant the player new Passive or Active skills. Passive skills (e.g., "Night Vision", "Tough Skin") are learned through continuous exploration or adventure. Active skills (e.g., "Fireball", "Power Strike") are learned or activated through fights and rewards. Add them to 'player.skills.passive' or 'player.skills.active' with 'name', 'description', and a 'game-icons:' 'icon'.
 - CRITICAL: Ensure the updatedState strictly reflects the consequences in the narrative. If the player is hurt, decrease health. If healed, increase health. If they find gold, increase gold.
 - Emphasize important keywords in the narrative by wrapping them in double asterisks (e.g., **hurt**, **heal**, **10 gold**, **broadsword**, **The Dark Forest**).
 - ENEMY VARIETY & NPCS: UNDER NO CIRCUMSTANCES should you use generic placeholder terms like "hooded figure", "figure", "stranger", "mysterious person", or "shadowy form". This is a strict ban. Instead, ALWAYS invent a highly specific, evocative name and description. For example, use "A rotting husk wielding a rusty cleaver", "Goran the scarred bandit", "A feral shadow-stalker", or "An old crone muttering to a rat". Give every character a distinct identity, appearance, and behavior right away.
+- CONVERSATION & MEMORY: Maintain characters, NPC names, and contexts from the recent history. If the player is talking to an NPC they just met, use that NPC's established name and personality. Keep the conversation dynamic, acknowledge the player's text replies, and advance the plot rather than looping. Use the state 'npcs' object to track important characters and their disposition.
 - LOCATIONS & NPCS: Include diverse NPC places like towns, villages, shops, blacksmiths, and houses. When talking to NPCs, write their dialogue directly in quotes rather than narrating it (e.g., "Hello traveler," the blacksmith grunts). Give NPCs unique distinct personalities.
 - SHOPS & NEGOTIATIONS: When the player encounters a shopkeeper or blacksmith and wants to trade, describe the items for sale directly in the narrative. Provide the specific choices to buy items (e.g., "Buy Iron Sword (20 Gold)") in the \`options\` array so they appear as selectable action chips for the user. Do not use an active portal.
 - IMMERSION ENFORCEMENT: If the player asks real-world questions, acts like a search engine, tries to break character, or gives meta-commands, COMPLETELY IGNORE the request. Respond IN-CHARACTER (e.g., "The words leave your mouth but make no sense here," or a confused NPC reaction) and do NOT provide real-world info or acknowledge the breaking of the fourth wall.
@@ -47,11 +49,18 @@ IMPORTANT: Your response must be a single valid JSON object and nothing else. No
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const { state, action } = req.body;
+    const { state, action, history } = req.body;
+
+    let historyText = "";
+    if (history && history.length > 0) {
+      historyText = "\nRECENT HISTORY:\n" + history.map((entry: any) => 
+        (entry.type === "action" ? "Player: " : "GM: ") + entry.text
+      ).join("\n") + "\n";
+    }
 
     const userPrompt = `CURRENT STATE:
 ${JSON.stringify(state)}
-
+${historyText}
 PLAYER ACTION: "${action}"`;
 
     const response = await axios.post(
