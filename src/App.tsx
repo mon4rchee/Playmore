@@ -29,8 +29,8 @@ const INITIAL_STATE: GameState = {
     },
   },
   world: {
-    currentLocation: "The Crossroads",
-    visitedLocations: ["The Crossroads"],
+    currentLocation: "",
+    visitedLocations: [],
     timeOfDay: "dawn",
     weather: "misty",
     activeEvents: [],
@@ -42,6 +42,10 @@ const INITIAL_STATE: GameState = {
     completedEvents: [],
   },
   npcs: {},
+  combat: {
+    isActive: false,
+    enemy: null
+  }
 };
 
 type ChatEntry = {
@@ -66,6 +70,35 @@ function renderNarrative(text: string) {
     }
     return <span key={index}>{part}</span>;
   });
+}
+
+function TypewriterText({ text, animate, onTyping }: { text: string, animate: boolean, onTyping?: () => void }) {
+  const [length, setLength] = useState(animate ? 0 : text.length);
+
+  useEffect(() => {
+    if (!animate) {
+      setLength(text.length);
+      return;
+    }
+    const interval = setInterval(() => {
+      setLength((prev) => {
+        if (prev >= text.length) {
+          clearInterval(interval);
+          return text.length;
+        }
+        return prev + 3; // 3 chars per 15ms = ~200 chars/sec
+      });
+    }, 15);
+    return () => clearInterval(interval);
+  }, [text, animate]);
+
+  useEffect(() => {
+    if (onTyping && animate) {
+      onTyping();
+    }
+  }, [length, onTyping, animate]);
+
+  return <>{renderNarrative(text.slice(0, length))}</>;
 }
 
 function getClassColor(className: string): string {
@@ -138,31 +171,32 @@ export default function App() {
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; message: string; icon?: string; isRead: boolean }[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [combatLog, setCombatLog] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const hasInitialized = useRef(false);
 
   const STARTING_TOWNS = [
-    { name: "Oakhaven", description: "A quiet village nestled in ancient woods.", icon: "lucide:tree-pine" },
-    { name: "Ironforge", description: "A bustling mountain town known for its smiths.", icon: "lucide:anvil" },
-    { name: "Silvercove", description: "A coastal settlement with a thriving port.", icon: "lucide:anchor" },
-    { name: "Eldoria", description: "A magically imbued city with floating towers.", icon: "lucide:sparkles" },
-    { name: "Dustwind", description: "A harsh desert outpost for hardy traders.", icon: "lucide:sun" },
-    { name: "Frostford", description: "A frozen village at the edge of the tundra.", icon: "lucide:snowflake" },
-    { name: "Glimmerbrook", description: "A peaceful hamlet known for its glowing rivers.", icon: "lucide:droplet" },
-    { name: "Ravenwatch", description: "A gloomy citadel overlooking the dark valleys.", icon: "lucide:eye" },
-    { name: "Sunreach", description: "A high-altitude monastery town.", icon: "lucide:sun" },
-    { name: "Thornbury", description: "A town surrounded by massive thorny vines.", icon: "lucide:leaf" },
-    { name: "Stonehaven", description: "An impenetrable fortress city.", icon: "lucide:shield" },
-    { name: "Mistwood", description: "A mysterious village hidden in eternal fog.", icon: "lucide:cloud-fog" },
-    { name: "Ashbourne", description: "A settlement built near an active volcano.", icon: "lucide:flame" },
-    { name: "Starfall", description: "A crater town where a meteor once struck.", icon: "lucide:star" },
-    { name: "Windhelm", description: "A city known for its massive windmills.", icon: "lucide:wind" },
-    { name: "Briarcliff", description: "A town clinging to the edge of a massive cliff.", icon: "lucide:mountain" },
-    { name: "Deepwater", description: "An underground city built on a subterranean lake.", icon: "lucide:waves" },
-    { name: "Highmount", description: "A sky-scraping city reachable only by griffon.", icon: "lucide:bird" },
-    { name: "Kingswatch", description: "The ancient capital of a fallen empire.", icon: "lucide:crown" },
-    { name: "Verdant Vale", description: "A lush, overgrown town bursting with life.", icon: "lucide:flower" }
+    { name: "Oakhaven", description: "A quiet village nestled in ancient woods.", icon: "lucide:tree-pine", startingPoint: "You stand in the bustling town square of Oakhaven, surrounded by towering, ancient pine trees." },
+    { name: "Ironforge", description: "A bustling mountain town known for its smiths.", icon: "lucide:anvil", startingPoint: "The heat of molten metal washes over you as you stand in the grand halls of Ironforge." },
+    { name: "Silvercove", description: "A coastal settlement with a thriving port.", icon: "lucide:anchor", startingPoint: "The salty sea breeze hits your face as you stand on the busy docks of Silvercove." },
+    { name: "Eldoria", description: "A magically imbued city with floating towers.", icon: "lucide:sparkles", startingPoint: "You stare in awe at the floating spires and shimmering arcane energy of Eldoria." },
+    { name: "Dustwind", description: "A harsh desert outpost for hardy traders.", icon: "lucide:sun", startingPoint: "You wipe sand from your brow in the dry, unforgiving desert outpost of Dustwind." },
+    { name: "Frostford", description: "A frozen village at the edge of the tundra.", icon: "lucide:snowflake", startingPoint: "You pull your cloak tight against the biting cold of Frostford's snowy streets." },
+    { name: "Glimmerbrook", description: "A peaceful hamlet known for its glowing rivers.", icon: "lucide:droplet", startingPoint: "You sit by the bioluminescent waters of Glimmerbrook, listening to the gentle current." },
+    { name: "Ravenwatch", description: "A gloomy citadel overlooking the dark valleys.", icon: "lucide:eye", startingPoint: "You look out from the high stone walls of Ravenwatch, the valley below shrouded in gloom." },
+    { name: "Sunreach", description: "A high-altitude monastery town.", icon: "lucide:sun", startingPoint: "The blinding sun glares off the white stone courtyard of the Sunreach monastery." },
+    { name: "Thornbury", description: "A town surrounded by massive thorny vines.", icon: "lucide:leaf", startingPoint: "You carefully navigate the narrow paths between Thornbury's massive, defensive briars." },
+    { name: "Stonehaven", description: "An impenetrable fortress city.", icon: "lucide:shield", startingPoint: "You walk beneath the massive portcullis into the impenetrable fortress of Stonehaven." },
+    { name: "Mistwood", description: "A mysterious village hidden in eternal fog.", icon: "lucide:cloud-fog", startingPoint: "The thick, eerie fog obscures your vision as you stand in the silent village of Mistwood." },
+    { name: "Ashbourne", description: "A settlement built near an active volcano.", icon: "lucide:flame", startingPoint: "The ground rumbles beneath your boots in the volcanic, ash-covered town of Ashbourne." },
+    { name: "Starfall", description: "A crater town where a meteor once struck.", icon: "lucide:star", startingPoint: "You look down into the massive, glowing crater that the town of Starfall calls home." },
+    { name: "Windhelm", description: "A city known for its massive windmills.", icon: "lucide:wind", startingPoint: "The rhythmic creaking of giant wooden blades fills the air in the breezy city of Windhelm." },
+    { name: "Briarcliff", description: "A town clinging to the edge of a massive cliff.", icon: "lucide:mountain", startingPoint: "You carefully step along the narrow, dizzying cliffside boardwalks of Briarcliff." },
+    { name: "Deepwater", description: "An underground city built on a subterranean lake.", icon: "lucide:waves", startingPoint: "You step off a ferry onto the damp, echoing docks of the subterranean city of Deepwater." },
+    { name: "Highmount", description: "A sky-scraping city reachable only by griffon.", icon: "lucide:bird", startingPoint: "You dismount onto the dizzyingly high floating platforms of Highmount." },
+    { name: "Kingswatch", description: "The ancient capital of a fallen empire.", icon: "lucide:crown", startingPoint: "You walk among the crumbling, majestic marble ruins of the once-great capital, Kingswatch." },
+    { name: "Verdant Vale", description: "A lush, overgrown town bursting with life.", icon: "lucide:flower", startingPoint: "You emerge into a vibrant, overgrown valley, the scent of blooming exotic flowers filling the air in Verdant Vale." }
   ];
 
   useEffect(() => {
@@ -193,22 +227,26 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history, isLoading]);
 
-  const handleAction = async (actionText: string, isInitial = false) => {
+  const handleAction = async (actionText: string, isInitial = false, customState?: any) => {
     if (!actionText.trim() || isLoading) return;
 
     const lowerAction = actionText.toLowerCase();
     const isMoving = lowerAction.match(/\b(go|walk|run|head|enter|leave|move|travel)\b/);
+    const isCurrentlyInCombat = gameState.combat?.isActive && gameState.combat?.enemy != null;
+
     setLoadingType(isMoving ? "fullscreen" : "inline");
     setLoadingText(getLoadingPhrase(actionText));
     setIsLoading(true);
     setInput("");
     
-    if (!isInitial) {
+    if (!isInitial && !isCurrentlyInCombat) {
       setHistory((prev) => [
         ...prev,
         { id: Date.now().toString(), type: "action", text: actionText },
       ]);
     }
+
+    const stateToSend = customState || gameState;
 
     try {
       const response = await fetch("/api/chat", {
@@ -217,7 +255,7 @@ export default function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          state: gameState,
+          state: stateToSend,
           action: actionText,
           history: history.slice(-10),
         }),
@@ -243,6 +281,15 @@ export default function App() {
           }
           if (data.updatedState.world) {
             newState.world = { ...prev.world, ...data.updatedState.world };
+          }
+          if (data.updatedState.combat) {
+            newState.combat = data.updatedState.combat;
+          }
+          if (data.updatedState.factions) {
+            newState.factions = { ...prev.factions, ...data.updatedState.factions };
+          }
+          if (data.updatedState.npcs) {
+            newState.npcs = { ...prev.npcs, ...data.updatedState.npcs };
           }
         }
         
@@ -274,16 +321,25 @@ export default function App() {
       setOptions(data.options || []);
       if (data.icon) setCurrentIcon(data.icon);
 
-      setHistory((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          type: "narrative",
-          text: data.narrative,
-          icon: data.icon || "lucide:circle",
-          messageType: data.messageType || "neutral",
-        },
-      ]);
+      const isStillInCombat = data.updatedState?.combat?.isActive;
+
+      if (isCurrentlyInCombat && isStillInCombat) {
+        setCombatLog(data.narrative);
+      } else {
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            type: "narrative",
+            text: data.narrative,
+            icon: data.icon || "lucide:circle",
+            messageType: data.messageType || "neutral",
+          },
+        ]);
+        if (!isStillInCombat) {
+          setCombatLog("");
+        }
+      }
     } catch (error) {
       console.error(error);
       setHistory((prev) => [
@@ -331,9 +387,21 @@ export default function App() {
   };
 
   const handleTownSelect = (townName: string) => {
+    const selectedTown = STARTING_TOWNS.find(t => t.name === townName);
+    const startingNarrative = selectedTown?.startingPoint || `You arrive in ${townName}.`;
+    
+    const newState = {
+      ...gameState,
+      world: {
+        ...gameState.world,
+        currentLocation: townName,
+        visitedLocations: [townName]
+      }
+    };
+    setGameState(newState);
     setIsSelectingTown(false);
     setIsGameStarted(true);
-    handleAction(`Start journey in ${townName}`, true);
+    handleAction(`Initial narrative: ${startingNarrative} Describe what I see and give me options.`, true, newState);
   };
 
   if (!isGameStarted) {
@@ -520,18 +588,99 @@ export default function App() {
             </div>
             <button
               onClick={() => setShowSidebar(true)}
-              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors relative"
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
             >
               <Icon icon="lucide:user" width="16" height="16" />
-              {notifications.filter(n => !n.isRead).length > 0 && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-neutral-950"></span>
-              )}
             </button>
           </div>
         </header>
 
+        {gameState.combat?.isActive && gameState.combat.enemy && (
+          <div className="bg-neutral-900/80 border-b border-rose-900/30 p-4 shrink-0 shadow-lg relative z-10 flex flex-col items-center justify-center gap-4 backdrop-blur-md">
+            <h2 className="text-rose-400 text-xs font-semibold tracking-widest uppercase flex items-center gap-2">
+              <Icon icon="lucide:swords" className="w-4 h-4" /> Combat Engaged
+            </h2>
+            <div className="flex w-full max-w-3xl items-center justify-between gap-4">
+              
+              {/* Player Card */}
+              <div className="flex-1 bg-neutral-950 border border-emerald-900/30 rounded-xl p-4 flex flex-col gap-3 relative shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-950/50 border border-emerald-900/50 flex items-center justify-center">
+                    <Icon icon="lucide:shield" className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-emerald-100 text-sm">{gameState.player.name}</div>
+                    <div className="text-[10px] text-emerald-500/70 uppercase tracking-wider">{gameState.player.emergedClass || "Traveler"}</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px] font-mono text-emerald-400/80 mb-1">
+                    <span>HP</span>
+                    <span>{gameState.player.health} / {gameState.player.maxHealth}</span>
+                  </div>
+                  <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800">
+                    <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (gameState.player.health / gameState.player.maxHealth) * 100))}%` }} />
+                  </div>
+                </div>
+                
+                {/* Small Battle Buttons */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                  <button onClick={() => handleAction("Attack")} disabled={isLoading} className="py-1.5 px-2 bg-rose-950/30 hover:bg-rose-900/50 border border-rose-900/50 rounded flex items-center justify-center gap-1.5 text-xs text-rose-200 transition-colors disabled:opacity-50">
+                    <Icon icon="lucide:sword" className="w-3 h-3" /> Attack
+                  </button>
+                  <button onClick={() => handleAction("Defend")} disabled={isLoading} className="py-1.5 px-2 bg-blue-950/30 hover:bg-blue-900/50 border border-blue-900/50 rounded flex items-center justify-center gap-1.5 text-xs text-blue-200 transition-colors disabled:opacity-50">
+                    <Icon icon="lucide:shield-half" className="w-3 h-3" /> Defend
+                  </button>
+                  <button onClick={() => handleAction("Use Item")} disabled={isLoading} className="py-1.5 px-2 bg-emerald-950/30 hover:bg-emerald-900/50 border border-emerald-900/50 rounded flex items-center justify-center gap-1.5 text-xs text-emerald-200 transition-colors disabled:opacity-50">
+                    <Icon icon="lucide:flask-conical" className="w-3 h-3" /> Item
+                  </button>
+                  <button onClick={() => handleAction("Flee")} disabled={isLoading} className="py-1.5 px-2 bg-neutral-800/50 hover:bg-neutral-700/50 border border-neutral-700/50 rounded flex items-center justify-center gap-1.5 text-xs text-neutral-300 transition-colors disabled:opacity-50">
+                    <Icon icon="lucide:footprints" className="w-3 h-3" /> Flee
+                  </button>
+                </div>
+              </div>
+
+              {/* VS */}
+              <div className="shrink-0 flex flex-col items-center gap-2 hidden sm:flex">
+                 <span className="text-rose-500/50 font-bold text-sm italic">VS</span>
+              </div>
+
+              {/* Enemy Card */}
+              <div className="flex-1 bg-neutral-950 border border-rose-900/30 rounded-xl p-4 flex flex-col gap-3 relative overflow-hidden shadow-inner">
+                <div className="absolute inset-0 bg-rose-500/5 mix-blend-overlay"></div>
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-rose-950/50 border border-rose-900/50 flex items-center justify-center shrink-0">
+                    <Icon icon="lucide:skull" className="w-5 h-5 text-rose-400 animate-pulse" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-rose-100 text-sm truncate" title={gameState.combat.enemy.name}>{gameState.combat.enemy.name}</div>
+                    {gameState.combat.enemy.intent && (
+                      <div className="text-[10px] text-rose-400/80 uppercase tracking-wider truncate" title={gameState.combat.enemy.intent}>{gameState.combat.enemy.intent}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="relative z-10 mt-auto">
+                  <div className="flex justify-between text-[10px] font-mono text-rose-400/80 mb-1">
+                    <span>HP</span>
+                    <span>{gameState.combat.enemy.health} / {gameState.combat.enemy.maxHealth}</span>
+                  </div>
+                  <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800">
+                    <div className="bg-rose-500 h-full transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (gameState.combat.enemy.health / gameState.combat.enemy.maxHealth) * 100))}%` }} />
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+            {combatLog && (
+              <div className="w-full max-w-3xl text-center text-rose-200/90 text-sm mt-2 font-serif italic animate-in fade-in slide-in-from-bottom-2">
+                <TypewriterText key={combatLog} text={combatLog} animate={true} />
+              </div>
+            )}
+          </div>
+        )}
+
         <main className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 relative">
-          {history.map((entry) => (
+          {history.map((entry, idx) => (
             <div
               key={entry.id}
               className={`flex flex-col max-w-3xl ${
@@ -555,7 +704,7 @@ export default function App() {
                     entry.messageType === 'bad' ? 'prose-p:text-rose-300/90' :
                     'prose-p:text-neutral-300'
                   }`}>
-                    <p>{renderNarrative(entry.text)}</p>
+                    <p><TypewriterText text={entry.text} animate={idx === history.length - 1} onTyping={() => bottomRef.current?.scrollIntoView({ behavior: "auto" })} /></p>
                   </div>
                 </div>
               )}

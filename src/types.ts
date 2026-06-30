@@ -53,6 +53,15 @@ export interface GameState {
       knowsAbout: string[];
     };
   };
+  combat?: {
+    isActive: boolean;
+    enemy: {
+      name: string;
+      health: number;
+      maxHealth: number;
+      intent?: string;
+    } | null;
+  };
 }
 
 export interface GameTurnResponse {
