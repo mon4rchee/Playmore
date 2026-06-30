@@ -130,7 +130,10 @@ export default function App() {
   const [currentIcon, setCurrentIcon] = useState("lucide:map");
   const [showSidebar, setShowSidebar] = useState(false);
   const [isInventoryExpanded, setIsInventoryExpanded] = useState(false);
+  const [isLocationsExpanded, setIsLocationsExpanded] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [isNamingHero, setIsNamingHero] = useState(false);
+  const [heroName, setHeroName] = useState("");
   const [isSelectingTown, setIsSelectingTown] = useState(false);
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; message: string; icon?: string; isRead: boolean }[]>([]);
@@ -324,7 +327,7 @@ export default function App() {
     });
     setHistory([]);
     setNotifications([]);
-    setIsSelectingTown(true);
+    setIsNamingHero(true);
   };
 
   const handleTownSelect = (townName: string) => {
@@ -340,7 +343,47 @@ export default function App() {
            <div className="w-[80vw] h-[80vw] md:w-[40vw] md:h-[40vw] rounded-full bg-neutral-900/40 blur-[100px] animate-pulse" style={{ animationDuration: '4s' }} />
         </div>
         
-        {isSelectingTown ? (
+        {isNamingHero ? (
+          <div className="z-10 flex flex-col h-full w-full px-4 pt-16 pb-4 max-w-lg mx-auto items-center justify-center">
+            <div className="shrink-0 text-center mb-8">
+              <h2 className="text-3xl font-semibold tracking-tight text-neutral-100 mb-2">Name Your Hero</h2>
+              <p className="text-sm text-neutral-400">Letters only. No numbers or symbols.</p>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const cleanName = heroName.replace(/[^a-zA-Z\s]/g, '').trim();
+              if (cleanName.length > 0) {
+                setGameState(prev => ({
+                  ...prev,
+                  player: {
+                    ...prev.player,
+                    name: cleanName
+                  }
+                }));
+                setIsNamingHero(false);
+                setIsSelectingTown(true);
+              }
+            }} className="w-full flex flex-col gap-4 items-center">
+              <input
+                type="text"
+                value={heroName}
+                onChange={(e) => setHeroName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
+                placeholder="Enter name..."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-6 py-4 text-center text-xl text-neutral-200 placeholder:text-neutral-600 outline-none focus:border-neutral-700 focus:ring-1 focus:ring-neutral-700 transition-all"
+                autoFocus
+                maxLength={20}
+              />
+              <button
+                type="submit"
+                disabled={heroName.trim().length === 0}
+                className="group px-8 py-3 rounded-full bg-neutral-100 text-neutral-950 font-medium hover:bg-white transition-all hover:scale-105 active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
+              >
+                Continue <Icon icon="lucide:arrow-right" className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </form>
+          </div>
+        ) : isSelectingTown ? (
           <div className="z-10 flex flex-col h-full w-full px-4 pt-8 pb-4 max-w-2xl mx-auto">
             <div className="shrink-0 text-center mb-6">
               <h2 className="text-3xl font-semibold tracking-tight text-neutral-100 mb-2">Choose Origin</h2>
@@ -475,17 +518,14 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            {gameState.player.emergedClass && (
-              <div className={`px-3 py-1 rounded-full border text-xs tracking-wider uppercase font-sans ${getClassColor(gameState.player.emergedClass)}`}>
-                {gameState.player.emergedClass}
-              </div>
-            )}
             <button
               onClick={() => setShowSidebar(true)}
-              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors relative"
             >
               <Icon icon="lucide:user" width="16" height="16" />
+              {notifications.filter(n => !n.isRead).length > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-neutral-950"></span>
+              )}
             </button>
           </div>
         </header>
@@ -610,9 +650,16 @@ export default function App() {
           <Icon icon="lucide:x" width="20" height="20" />
         </button>
         <div>
-          <h3 className="text-xs font-semibold tracking-widest uppercase text-neutral-500 mb-4 flex items-center gap-2">
-            <Icon icon="lucide:user" /> Identity
-          </h3>
+          <div className="flex items-center gap-3 mb-4 flex-wrap pr-8">
+            <h3 className="text-xs font-semibold tracking-widest uppercase text-neutral-500 flex items-center gap-2">
+              <Icon icon="lucide:user" /> {gameState.player.name}
+            </h3>
+            {gameState.player.emergedClass && (
+              <div className={`px-2 py-0.5 rounded border text-[10px] tracking-wider uppercase font-sans ${getClassColor(gameState.player.emergedClass)}`}>
+                {gameState.player.emergedClass}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-neutral-900/50 border border-neutral-800 rounded-lg p-3">
               <div className="text-neutral-500 text-xs mb-1 font-mono">HP</div>
@@ -757,15 +804,23 @@ export default function App() {
               <Icon icon="lucide:footprints" /> Journey
             </h3>
             <div className="relative pl-3 border-l border-neutral-800 space-y-4">
-              {gameState.world.visitedLocations.map((loc, i) => (
+              {(isLocationsExpanded ? [...gameState.world.visitedLocations].reverse() : [...gameState.world.visitedLocations].reverse().slice(0, 5)).map((loc, i) => (
                 <div key={i} className="relative">
-                  <div className="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-neutral-700 ring-4 ring-neutral-950" />
-                  <div className={`text-sm ${i === gameState.world.visitedLocations.length - 1 ? "text-neutral-200 font-medium" : "text-neutral-500"}`}>
+                  <div className={`absolute -left-[17px] top-1.5 w-2 h-2 rounded-full ${i === 0 ? "bg-neutral-200" : "bg-neutral-700"} ring-4 ring-neutral-950`} />
+                  <div className={`text-sm ${i === 0 ? "text-neutral-200 font-medium" : "text-neutral-500"}`}>
                     {loc}
                   </div>
                 </div>
               ))}
             </div>
+            {gameState.world.visitedLocations.length > 5 && (
+              <button
+                onClick={() => setIsLocationsExpanded(!isLocationsExpanded)}
+                className="mt-3 w-full py-2 text-xs font-medium tracking-wide uppercase text-neutral-500 hover:text-neutral-300 bg-neutral-900/30 hover:bg-neutral-900/50 rounded-md border border-neutral-800 transition-colors"
+              >
+                {isLocationsExpanded ? "Collapse Journey" : `View Full Journey (${gameState.world.visitedLocations.length})`}
+              </button>
+            )}
           </div>
         )}
 
